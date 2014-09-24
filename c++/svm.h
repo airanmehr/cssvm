@@ -24,6 +24,8 @@ struct svm_problem
 
 enum { C_SVC, NU_SVC, ONE_CLASS, EPSILON_SVR, NU_SVR };	/* svm_type */
 enum { LINEAR, POLY, RBF, SIGMOID, PRECOMPUTED }; /* kernel_type */
+/* CS-learning_type: Cost-insensitive, Cost-sensitive Class-dependent with cost, Cost-sensitive with Example-dependent cost*/
+enum { CISVM, CD, ED};
 
 struct svm_parameter
 {
@@ -44,6 +46,9 @@ struct svm_parameter
 	double p;	/* for EPSILON_SVR */
 	int shrinking;	/* use the shrinking heuristics */
 	int probability; /* do probability estimates */
+	int CS;			/* for cost-sensitive learning */
+	double* costs; /* for example-dependent cost-sensitive learning */
+
 };
 
 //

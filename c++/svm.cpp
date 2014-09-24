@@ -9,7 +9,10 @@
 #include <locale.h>
 #include "svm.h"
 int libsvm_version = LIBSVM_VERSION;
-typedef float Qfloat;
+double *Ci; // *CS-SVM*
+bool CSED=false;
+//typedef float Qfloat;
+typedef double Qfloat;
 typedef signed char schar;
 #ifndef min
 template <class T> static inline T min(T x,T y) { return (x<y)?x:y; }
@@ -425,8 +428,13 @@ protected:
 
 	double get_C(int i)
 	{
-		return (y[i] > 0)? Cp : Cn;
+
+		if(!CSED)
+			return (y[i] > 0)? Cp : Cn;
+		else
+			return (y[i] > 0)? Ci[i]*Cp : Ci[i]*Cn;
 	}
+
 	void update_alpha_status(int i)
 	{
 		if(alpha[i] >= get_C(i))
@@ -1472,6 +1480,98 @@ static void solve_c_svc(
 	delete[] y;
 }
 
+static void solve_cs_cd_svc(
+	const svm_problem *prob, const svm_parameter* param,
+	double *alpha, Solver::SolutionInfo* si, double Cp, double Cn)
+{
+	int l = prob->l;
+	double *minus_ones = new double[l];
+	schar *y = new schar[l];
+
+	int i;
+	double kappa,lower_cost_class;
+	if(Cn <= Cp)
+	{
+		kappa=1/Cn*param->C;
+		lower_cost_class=-1;
+	}
+	else
+	{
+		kappa=1/Cp*param->C;
+		lower_cost_class=1;
+	}
+	for(i=0;i<l;i++)
+	{
+		alpha[i] = 0;
+		minus_ones[i] = -1;
+		if(prob->y[i] > 0) y[i] = +1; else y[i] = -1;
+		if ( prob->y[i]== lower_cost_class )
+			minus_ones[i] = -kappa;
+	}
+	Solver s;
+	s.Solve(l, SVC_Q(*prob,*param,y), minus_ones, y, alpha, Cp, Cn, param->eps, si, param->shrinking);
+
+	double sum_alpha=0;
+	for(i=0;i<l;i++)
+		sum_alpha += alpha[i];
+
+	if (Cp==Cn)
+		info("nu = %f\n", sum_alpha/(Cp*prob->l));
+
+	for(i=0;i<l;i++)
+		alpha[i] *= y[i];
+
+	delete[] minus_ones;
+	delete[] y;
+}
+
+static void solve_cs_ed_svc(
+	const svm_problem *prob, const svm_parameter* param,
+	double *alpha, Solver::SolutionInfo* si, double Cp, double Cn)
+{
+	int l = prob->l;
+	double *minus_ones = new double[l];
+	schar *y = new schar[l];
+
+	int i;
+	double kappa,lower_cost_class;
+	if(param->weight[0] < param->weight[1])
+	{
+		kappa=1/param->weight[0];
+		lower_cost_class=param->weight_label[0];
+	}
+	else
+	{
+		kappa=1/param->weight[1];
+		lower_cost_class=param->weight_label[1];
+	}
+	for(i=0;i<l;i++)
+	{
+		alpha[i] = 0;
+		minus_ones[i] = -1;
+		if(prob->y[i] > 0) y[i] = +1; else y[i] = -1;
+		if ( prob->y[i]== lower_cost_class )
+			minus_ones[i] = -kappa;
+	}
+
+	Solver s;
+	s.Solve(l, SVC_Q(*prob,*param,y), minus_ones, y,
+		alpha, Cp, Cn, param->eps, si, param->shrinking);
+
+	double sum_alpha=0;
+	for(i=0;i<l;i++)
+		sum_alpha += alpha[i];
+
+	if (Cp==Cn)
+		info("nu = %f\n", sum_alpha/(Cp*prob->l));
+
+	for(i=0;i<l;i++)
+		alpha[i] *= y[i];
+
+	delete[] minus_ones;
+	delete[] y;
+}
+
 static void solve_nu_svc(
 	const svm_problem *prob, const svm_parameter *param,
 	double *alpha, Solver::SolutionInfo* si)
@@ -1652,8 +1752,14 @@ static decision_function svm_train_one(
 	Solver::SolutionInfo si;
 	switch(param->svm_type)
 	{
-		case C_SVC:
-			solve_c_svc(prob,param,alpha,&si,Cp,Cn);
+		case C_SVC:  // *CS-SVM*
+			if (param->CS==CISVM)
+				solve_c_svc(prob,param,alpha,&si,Cp,Cn);
+			else if (param->CS==CD)
+				solve_cs_cd_svc(prob,param,alpha,&si,Cp,Cn);
+			else if (param->CS==ED)
+				solve_cs_ed_svc(prob,param,alpha,&si,Cp,Cn);
+
 			break;
 		case NU_SVC:
 			solve_nu_svc(prob,param,alpha,&si);
@@ -2091,6 +2197,8 @@ static void svm_group_classes(const svm_problem *prob, int *nr_class_ret, int **
 //
 svm_model *svm_train(const svm_problem *prob, const svm_parameter *param)
 {
+	if (param->CS==ED)
+		CSED=true;
 	svm_model *model = Malloc(svm_model,1);
 	model->param = *param;
 	model->free_sv = 0;	// XXX
@@ -2158,8 +2266,12 @@ svm_model *svm_train(const svm_problem *prob, const svm_parameter *param)
 		for(i=0;i<l;i++)
 			x[i] = prob->x[perm[i]];
 
-		// calculate weighted C
-
+		// calculate weighted C   *CS-SVM*
+		if (CSED){
+			Ci = Malloc(double,l);
+			for(i=0;i<l;i++)
+				Ci[i] = param->costs[perm[i]];
+		}
 		double *weighted_C = Malloc(double, nr_class);
 		for(i=0;i<nr_class;i++)
 			weighted_C[i] = param->C;

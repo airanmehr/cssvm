@@ -100,16 +100,16 @@ class svm_problem(Structure):
 class svm_parameter(Structure):
 	_names = ["svm_type", "kernel_type", "degree", "gamma", "coef0",
 			"cache_size", "eps", "C", "nr_weight", "weight_label", "weight", 
-			"nu", "p", "shrinking", "probability"]
+			"nu", "p", "shrinking", "probability","CS","costs"]
 	_types = [c_int, c_int, c_int, c_double, c_double, 
 			c_double, c_double, c_double, c_int, POINTER(c_int), POINTER(c_double),
-			c_double, c_double, c_int, c_int]
+			c_double, c_double, c_int, c_int,c_int, POINTER(c_double)]
 	_fields_ = genFields(_names, _types)
 
-	def __init__(self, options = None):
+	def __init__(self, options = None,costs=None):
 		if options == None:
 			options = ''
-		self.parse_options(options)
+		self.parse_options(options,costs)
 
 	def __str__(self):
 		s = ''
@@ -140,8 +140,10 @@ class svm_parameter(Structure):
 		self.cross_validation = False
 		self.nr_fold = 0
 		self.print_func = cast(None, PRINT_STRING_FUN)
+		self.CS=0
+		self.costs = (c_double*0)()
 
-	def parse_options(self, options):
+    def parse_options(self, options,costs=None):
 		if isinstance(options, list):
 			argv = options
 		elif isinstance(options, str):
@@ -199,6 +201,9 @@ class svm_parameter(Structure):
 				self.nr_fold = int(argv[i])
 				if self.nr_fold < 2:
 					raise ValueError("n-fold cross validation: n must >= 2")
+			elif argv[i] == "-C":
+				i = i +1
+				self.CS = int(argv[i])
 			elif argv[i].startswith("-w"):
 				i = i + 1
 				self.nr_weight += 1
@@ -208,7 +213,10 @@ class svm_parameter(Structure):
 			else:
 				raise ValueError("Wrong options")
 			i += 1
-
+		if costs != None:
+			self.costs = (c_double*len(costs))()
+			for i in range(len(costs)):
+				self.costs[i]=costs[i]
 		libsvm.svm_set_print_string_function(self.print_func)
 		self.weight_label = (c_int*self.nr_weight)()
 		self.weight = (c_double*self.nr_weight)()

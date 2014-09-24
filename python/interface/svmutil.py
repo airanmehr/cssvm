@@ -2,7 +2,7 @@
 
 import os, sys
 sys.path = [os.path.dirname(os.path.abspath(__file__))] + sys.path 
-from svm import *
+from cssvm import *
 
 def svm_read_problem(data_file_name):
 	"""
@@ -76,7 +76,7 @@ def evaluations(ty, pv):
 		SCC = float('nan')
 	return (ACC, MSE, SCC)
 
-def svm_train(arg1, arg2=None, arg3=None):
+def svm_train(arg1, arg2=None, arg3=None,costs=None):
 	"""
 	svm_train(y, x [, options]) -> model | ACC | MSE 
 	svm_train(prob [, options]) -> model | ACC | MSE 
@@ -117,11 +117,11 @@ def svm_train(arg1, arg2=None, arg3=None):
 	if isinstance(arg1, (list, tuple)):
 		assert isinstance(arg2, (list, tuple))
 		y, x, options = arg1, arg2, arg3
-		param = svm_parameter(options)
-		prob = svm_problem(y, x, isKernel=(param.kernel_type == PRECOMPUTED))
+		param = svm_parameter(options,costs)
+        prob = svm_problem(y, x, isKernel=(param.kernel_type == PRECOMPUTED))
 	elif isinstance(arg1, svm_problem):
 		prob = arg1
-		if isinstance(arg2, svm_parameter):
+		if isinstance(arg2, svm_parameter,costs):
 			param = arg2
 		else:
 			param = svm_parameter(arg2)

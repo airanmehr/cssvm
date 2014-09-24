@@ -25,6 +25,11 @@ void exit_with_help()
 	"	2 -- radial basis function: exp(-gamma*|u-v|^2)\n"
 	"	3 -- sigmoid: tanh(gamma*u'*v + coef0)\n"
 	"	4 -- precomputed kernel (kernel values in training_set_file)\n"
+	"-C Cost-sensitive Learning Method(default 0):\n"
+	"	0 -- cost-insensitive SVM (biased-penalty SVM with option -w1 C_1 -w-1 C_-1)\n"
+	"	1 -- cost-sensitive SVM with option -w1 C_1 -w-1 1/kappa\n"
+	"	2 -- cost-sensitive SVM with example-dependent cost.used with option -W cost_file_name\n"
+	"-W cost_file_name : file contains example costs for example-dependent cost-sensitive learning\n"
 	"-d degree : set degree in kernel function (default 3)\n"
 	"-g gamma : set gamma in kernel function (default 1/num_features)\n"
 	"-r coef0 : set coef0 in kernel function (default 0)\n"
@@ -189,6 +194,36 @@ void parse_command_line(int argc, char **argv, char *input_file_name, char *mode
 			exit_with_help();
 		switch(argv[i-1][1])
 		{
+			case 'C':
+				param.CS = atoi(argv[i]);
+				break;
+
+			case 'W':{
+				FILE *fp = fopen(argv[i],"r");
+				if(fp == NULL)
+				{
+					fprintf(stderr,"can't open input file %s\n",argv[i]);
+					exit(1);
+				}
+				max_line_len = 1024;
+				line = Malloc(char,max_line_len);
+				int n=0;
+				while(readline(fp)!=NULL)
+					++n;
+				param.costs = Malloc(double,n);
+				rewind(fp);
+				char *endptr;
+				int i=0;
+				char *cost;
+				while(readline(fp)){
+					cost = strtok(line," \t\n");
+					if(cost== NULL) // empty line
+						exit_input_error(i+1);
+					param.costs[i] =strtod(line,&endptr);
+					i++;
+				}
+				break;
+			}
 			case 's':
 				param.svm_type = atoi(argv[i]);
 				break;
