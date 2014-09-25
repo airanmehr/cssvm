@@ -36,9 +36,9 @@
 *~
 *.so.2
 .project
-c++/svm-scale
-c++/svm-train
-c++/svm-predict
+svm-scale
+svm-train
+svm-predict
 
 ############## Eclipse
 *.pydevproject
