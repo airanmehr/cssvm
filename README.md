@@ -6,11 +6,10 @@ This project implements [CSSVM](http://arxiv.org/abs/1212.0975) using LibSVM.
 -
 Installing CSSVM is exactly the same as LibSVM:
 
-1.  ####Command line
+1.  **Command line**:
 In the root directory of the project and simply execute ```make```.
 
-2.  ####Python Interface
-In the ```python``` directory, execute ```make```.
+2.  **Python Interface** In the ```python``` directory, execute ```make```.
 
 
 2.  Run
