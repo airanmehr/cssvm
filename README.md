@@ -4,10 +4,18 @@ This project implements [CSSVM](http://arxiv.org/abs/1212.0975) using LibSVM.
 
 1.  Installation
 -
+Installing CSSVM is exactly the same as LibSVM:
+
+1.  ####Command line
+In the root directory of the project and simply execute ```make```.
+
+2.  ####Python Interface
+In the ```python``` directory, execute ```make```.
+
 
 2.  Run
 -
-Here is the usage of CSSVM:
+Running CSSVM is almost like running LibSVM, except the new  <code>-C</code> and <code>-W</code> options:
 <pre><code>
 Usage: svm-train [options] training_set_file [model_file]
 options:
@@ -43,4 +51,9 @@ options:
 -q : quiet mode (no outputs)
 </code></pre>
 
-which <code>-C</code> and <code>-W</code> are new options, compared to LibSVM
+3.   CSSVM Tools
+-
+
+4.   Examples
+-
+
