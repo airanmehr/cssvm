@@ -39,6 +39,7 @@
 svm-scale
 svm-train
 svm-predict
+*.pyc
 
 ############## Eclipse
 *.pydevproject
