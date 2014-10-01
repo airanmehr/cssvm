@@ -11,7 +11,7 @@ try:
 	if sys.platform == 'win32':
 		libsvm = CDLL(path.join(dirname, r'..\windows\libsvm.dll'))
 	else:
-		libsvm = CDLL(path.join(dirname, '../libsvm.so.2'))
+		libsvm = CDLL(path.join(dirname, '/home/arya/workspace/cssvm/libsvm.so.2'))
 except:
 # For unix the prefix 'lib' is not considered.
 	if find_library('svm'):
@@ -19,6 +19,7 @@ except:
 	elif find_library('libsvm'):
 		libsvm = CDLL(find_library('libsvm'))
 	else:
+		print find_library('svm')
 		raise Exception('LIBSVM library not found.')
 
 # Construct constants
@@ -142,8 +143,8 @@ class svm_parameter(Structure):
 		self.print_func = cast(None, PRINT_STRING_FUN)
 		self.CS=0
 		self.costs = (c_double*0)()
-
-    def parse_options(self, options,costs=None):
+	
+	def parse_options(self, options,costs=None):
 		if isinstance(options, list):
 			argv = options
 		elif isinstance(options, str):

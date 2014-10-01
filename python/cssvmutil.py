@@ -118,8 +118,9 @@ def svm_train(arg1, arg2=None, arg3=None,costs=None):
 		assert isinstance(arg2, (list, tuple))
 		y, x, options = arg1, arg2, arg3
 		param = svm_parameter(options,costs)
-        prob = svm_problem(y, x, isKernel=(param.kernel_type == PRECOMPUTED))
+		prob = svm_problem(y, x, isKernel=(param.kernel_type == PRECOMPUTED))
 	elif isinstance(arg1, svm_problem):
+
 		prob = arg1
 		if isinstance(arg2, svm_parameter,costs):
 			param = arg2
@@ -163,7 +164,7 @@ def svm_train(arg1, arg2=None, arg3=None,costs=None):
 		m.x_space = prob.x_space
 		return m
 
-def svm_predict(y, x, m, options=""):
+def svm_predict(y, x, m, options="-q"):
 	"""
 	svm_predict(y, x, m [, options]) -> (p_labels, p_acc, p_vals)
 
@@ -251,4 +252,129 @@ def svm_predict(y, x, m, options=""):
 		info("Accuracy = %g%% (%d/%d) (classification)" % (ACC, int(l*ACC/100), l))
 
 	return pred_labels, (ACC, MSE, SCC), pred_values
+
+from data import *
+from numpy import mean
+from eval import *
+from subprocess import  Popen,PIPE
+
+def refine_ranges(param):
+    RangeC, RangeG, RangeCp, RangeK= param['RangeC'], param['RangeG'], param['RangeCp'], param['RangeK']
+    if param['NotC']:
+        with open( '{0}.BM.{1}-{2}.out'.format(param['dataset'], param['measure'],param['t'])) as filein:
+            fields = filein.readlines()[-1].split()
+        RangeC = [float(fields[1])]
+    if param['NotG']:
+        with open( '{0}.BM.{1}-{2}.out'.format(param['dataset'], param['measure'], param['t'])) as filein:
+            fields = filein.readlines()[-1].split()
+        RangeG = [float(fields[2])]
+    return   RangeC, RangeG, RangeCp, RangeK
+
+def grid_search(dataset, t, measure, alg):
+    param = {'C':1, 'gamma':1, 'Cp':1, 'Cn':1,'dataset':path + dataset + '.libsvm.scale.train'+('','.small')[datasets[dataset]['large']==1], 'name':dataset, 'type': datasets[dataset]['type'], 'solver':'cssvm', 'fold':(10,1)[ datasets[dataset]['large'] == 1], 'alg':alg , 't':t, 'measure':measure, 'runname':'{0}-{1}'.format(measure,t)}
+    param['Y'], param['X'] = svm_read_problem(param['dataset'] )
+    best_performance, best_Cp, best_Cn, best_C, best_G = 1, 1, 1, 1, 1
+    RangeC, RangeG, RangeCp, RangeK= refine_ranges(param)
+    with  open('{0}.{1}.{2}-{3}.out'.format( param['dataset'] , param['alg'], param['measure'],param['t']), 'a') as out_file:
+        print >> out_file, 'C\tGamma\tCp\tKappa\tPerformance'
+        for i in RangeK:
+            for j in RangeCp:
+                for k in RangeC:
+                    for l in RangeG:
+                        if 1/i > j:
+                            continue
+                        param['Cn'], param['Cp'], param['C'], param['gamma'] = 1 / i, j, k, l  #**************  C_n = 1/Kappa
+                        performance = train(param)
+                        if (performance < best_performance) or (performance == best_performance and  param['Cp'] < best_Cp) or (performance == best_performance and  param['Cn'] < best_Cn):
+                            best_performance,best_Cp, best_Cn, best_c, best_g = performance, param['Cp'], param['Cn'], param['C'], param['gamma']
+                        print >> out_file, '{0}\t{1}\t{2}\t{3}\t{4}'.format( param['C'], param['gamma'],param['Cp'], param['Cn'], performance)
+        print >> out_file, 'Bests:\t{0}\t{1}\t{2}\t{3}\t{4}'.format(best_c, best_g, best_Cp, best_Cn, best_performance)
+#         if param['verb']>1:
+#             output("{0} Grid on {1} FINISHED in {2} Iterations! C={3} Gamma={4} Cp={5} Kappa={6} \tValidation {7}={8}   {9}".format(param['alg'], param['name'],len(RangeG)*len(RangeC)*len(RangeCp)*len(RangeK), best_c, best_g, best_Cp, 1./best_Cn,measure[param['type']], best_performance, ('','##### Kappa is not One! #####')[best_Cn != 1]),param['runname'])
+    return best_performance
+
+def train(param):
+    param['P_p'] = mean(array(param['Y']) == 1)
+    param['P_n'] = 1 - param['P_p']
+    deci = None
+    if param['cmdline']:
+        deci, param['Y'] = get_deci_cmdline( param)
+    else:
+        deci = get_cv_deci( param)
+    if param['type']=='CSE':
+        performance = get_income(deci, param['Y'], param)
+    elif param['type']=='CSU' or param['type']=='IDL':
+        performance = get_auc(deci, param['Y'], param)
+    elif param['type']=='CSA':
+        performance = get_risk(deci, param['Y'], param)
+    return performance
+    
+
+def get_pos_deci(train_y, train_x, test_y, test_x, param):
+    params = '-q -h 0 -m 2000 -c {0} -g {1} -w1 {2} -w-1 {3} '.format(param['C'], param['gamma'], param['Cp'], param['Cn'])
+    if param['alg'] == 'EDBP' or param['alg'] == 'EDCS':
+        params = '-C 2 ' + params
+        model = svm_train(train_y, train_x, params, param['train_costs'])
+    else:
+        if param['alg'] == 'BM' or param['alg'] == 'BP' or  param['alg'] == 'EDBM':
+            params = '-C 0 ' + params
+        elif param['alg'] == 'CS':
+            params = '-C 1 ' + params
+        model = svm_train(train_y, train_x, params)
+    labels = model.get_labels()
+    py, evals, deci = svm_predict(test_y, test_x, model)
+    if model.get_labels() != [1, -1] and model.get_labels() != [-1, 1]:
+        return None
+    decV = [ labels[0]*val[0] for val in deci]
+    return decV
+
+def get_deci_cmdline(param):
+    model_file= '{0}.{1}.model'.format(param['dataset'], param['alg'])
+    pred_file= '{0}.{1}.pred'.format(param['dataset'], param['alg'])
+    test_file= param['dataset'].replace('train','test')
+    cmd = '{0} -h 0 -q -m 2000 -c {1} -g {2}'.format(cssvm_train, param['C'], param['gamma'])
+    if param['alg'] == 'EDBP' or param['alg'] == 'EDCS':
+        cmd += ' -C 2 -W {0}.train.cost'.format(param['name'])
+    if param['alg'] == 'CS':
+        cmd += ' -C 1 '
+    cmd += ' -w1 {0} -w-1 {1}  {2} {3} '.format(param['Cp'], param['Cn'], param['dataset'], model_file)
+    p = Popen(cmd, shell=True, stdout=PIPE)
+    p.wait()
+    cmd = '{0} {1} {2} {3} '.format(cssvm_classify,test_file, model_file, pred_file)
+    p = Popen(cmd, shell=True, stdout=PIPE)
+    p.wait()
+    deci=read_deci(pred_file)
+    model = svm_load_model(model_file)
+    labels = model.get_labels()
+    deci = [labels[0]*val[0] for val in deci]
+    test_y=read_labels(test_file)
+    return test_y, deci
+
+def get_cv_deci(prob_y, prob_x, param):
+    seed(0)
+    if param['fold'] == 1 or param['fold'] == 0:
+        test_y,test_x=svm_read_problem(param['dataset'].replace('small','val'))
+        deci = get_pos_deci(prob_y, prob_x, test_y, test_x, param)
+        return deci
+    deci, model = [], []
+    subparam = param.copy()
+    prob_l = len(prob_y)     #random permutation by swapping i and j instance
+    for i in range(prob_l):
+        j = randrange(i, prob_l)
+        prob_x[i], prob_x[j] = prob_x[j], prob_x[i]
+        prob_y[i], prob_y[j] = prob_y[j], prob_y[i]
+        if param['alg'] == 'EDBP' or param['alg'] == 'EDCS' or param['alg'] == 'EDBM':
+            param['costs'][i], param['costs'][j] = param['costs'][j], param['costs'][i]
+    for i in range(param['fold']):     #cross training : folding
+        begin = i * prob_l // param['fold']
+        end = (i + 1) * prob_l // param['fold']
+        train_x = prob_x[:begin] + prob_x[end:]
+        train_y = prob_y[:begin] + prob_y[end:]
+        test_x = prob_x[begin:end]
+        test_y = prob_y[begin:end]
+        subdeci = get_pos_deci(train_y, train_x, test_y, test_x, subparam)
+        if subdeci == None:
+            return None
+        deci += subdeci
+    return deci
 
