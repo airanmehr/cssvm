@@ -55,7 +55,7 @@ void exit_input_error(int line_num)
 
 void parse_command_line(int argc, char **argv, char *input_file_name, char *model_file_name);
 void read_problem(const char *filename);
-void do_cross_validation();
+void do_cross_validation(const char*);
 
 struct svm_parameter param;		// set by parse_command_line
 struct svm_problem prob;		// set by read_problem
@@ -103,7 +103,9 @@ int main(int argc, char **argv)
 
 	if(cross_validation)
 	{
-		do_cross_validation();
+		char cv_file_name[1024];
+		sprintf(cv_file_name,"%s.cv",model_file_name);
+		do_cross_validation(cv_file_name);
 	}
 	else
 	{
@@ -124,15 +126,17 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-void do_cross_validation()
+void do_cross_validation(const char* cv_file_name)
 {
 	int i;
 	int total_correct = 0;
 	double total_error = 0;
 	double sumv = 0, sumy = 0, sumvv = 0, sumyy = 0, sumvy = 0;
 	double *target = Malloc(double,prob.l);
+	int nr_class;
+	svm_cross_validation(&prob,&param,nr_fold,target,nr_class);
 
-	svm_cross_validation(&prob,&param,nr_fold,target);
+
 	if(param.svm_type == EPSILON_SVR ||
 	   param.svm_type == NU_SVR)
 	{
@@ -155,9 +159,25 @@ void do_cross_validation()
 	}
 	else
 	{
-		for(i=0;i<prob.l;i++)
-			if(target[i] == prob.y[i])
-				++total_correct;
+		printf( "Validation is done1\n");
+		if (nr_class==2){
+			FILE *f = fopen(cv_file_name, "w");
+			if (f == NULL){
+				printf("Error CVout file!\n");
+				exit(1);
+			}
+			fprintf(f, "Label\tPrediction\n");
+			for(i=0;i<prob.l;i++){
+				if(target[i] * prob.y[i] >0)
+					++total_correct;
+				fprintf(f, "%.0f\t%f\n", prob.y[i], target[i]);
+			}
+			fclose(f);
+		}else{
+			for(i=0;i<prob.l;i++)
+				if(target[i] == prob.y[i])
+					++total_correct;
+		}
 		printf("Cross Validation Accuracy = %g%%\n",100.0*total_correct/prob.l);
 	}
 	free(target);

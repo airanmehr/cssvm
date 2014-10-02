@@ -131,8 +131,14 @@ void predict(FILE *input, FILE *output)
 			fprintf(output,"%g\n",predict_label);
 		}
 
-		if(predict_label == target_label)
-			++correct;
+		if(nr_class==2){   //for binary classification, svm_predict() returns decision value for use of other performance measures
+			if(predict_label * target_label>0)
+				++correct;
+		}
+		else{
+			if(predict_label == target_label)
+				++correct;
+		}
 		error += (predict_label-target_label)*(predict_label-target_label);
 		sump += predict_label;
 		sumt += target_label;

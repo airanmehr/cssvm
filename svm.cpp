@@ -2093,7 +2093,8 @@ static double svm_svr_probability(
 
 	svm_parameter newparam = *param;
 	newparam.probability = 0;
-	svm_cross_validation(prob,&newparam,nr_fold,ymv);
+	int nr_class_dummy;
+	svm_cross_validation(prob,&newparam,nr_fold,ymv, nr_class_dummy);
 	for(i=0;i<prob->l;i++)
 	{
 		ymv[i]=prob->y[i]-ymv[i];
@@ -2448,7 +2449,7 @@ svm_model *svm_train(const svm_problem *prob, const svm_parameter *param)
 }
 
 // Stratified cross validation
-void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, int nr_fold, double *target)
+void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, int nr_fold, double *target, int &nr_class_ret)
 {
 	int i;
 	int *fold_start;
@@ -2470,7 +2471,7 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 		int *label = NULL;
 		int *count = NULL;
 		svm_group_classes(prob,&nr_class,&label,&start,&count,perm);
-
+		nr_class_ret=nr_class;
 		// random shuffle and then data grouped by fold using the array perm
 		int *fold_count = Malloc(int,nr_fold);
 		int c;
@@ -2695,6 +2696,25 @@ double svm_predict(const svm_model *model, const svm_node *x)
 	   model->param.svm_type == NU_SVR)
 		dec_values = Malloc(double, 1);
 	else 
+		dec_values = Malloc(double, nr_class*(nr_class-1)/2);
+	double pred_result;
+	if(nr_class==2) // in order to write decision values instead of predicted labels in out and cv files. (for AUC and other measures)
+		svm_predict_values(model, x, &pred_result);
+	else
+		pred_result= svm_predict_values(model, x, dec_values);
+	free(dec_values);
+	return pred_result;
+}
+
+double svm_predict_deci(const svm_model *model, const svm_node *x)
+{
+	int nr_class = model->nr_class;
+	double *dec_values;
+	if(model->param.svm_type == ONE_CLASS ||
+	   model->param.svm_type == EPSILON_SVR ||
+	   model->param.svm_type == NU_SVR)
+		dec_values = Malloc(double, 1);
+	else
 		dec_values = Malloc(double, nr_class*(nr_class-1)/2);
 	double pred_result = svm_predict_values(model, x, dec_values);
 	free(dec_values);
