@@ -29,6 +29,8 @@
 
 # LibSVM
 *.out
+.cv
+out
 *.png
 *.model
 *.range
