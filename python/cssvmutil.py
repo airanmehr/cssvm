@@ -391,17 +391,20 @@ def get_pos_deci(param):
     return decV
 
 def get_deci_cmdline(param):
+	cv_option=""
+	model_file= '{0}.{1}.model'.format(param['dataset'], param['alg'])
+	pred_file= '{0}.{1}.pred'.format(param['dataset'], param['alg'])
 	if param['fold'] == -1:
 		test_file= param['dataset'].replace('train','test')
 	if param['fold'] == 0 :
 		test_file= param['dataset'].replace('train','val')
 	if param['fold'] == 1 :
-		test_file= param['dataset']
-	print param['fold'], test_file
-	model_file= '{0}.{1}.model'.format(param['dataset'], param['alg'])
-	pred_file= '{0}.{1}.pred'.format(param['dataset'], param['alg'])
-	
-	cmd = '{0} -h 0 {1} -m 2000 -c {2} -g {3}'.format(cssvm_train,('','q')[param['verb']>4], param['C'], param['gamma'])
+		test_file= param['dataset'] 
+	else:
+		test_file= ""
+		cv_option = "-v {0}".format(param['fold'])
+		
+	cmd = '{0} -h 0 {1} -m 2000 -c {2} -g {3} {4}'.format(cssvm_train,('','q')[param['verb']>4], param['C'], param['gamma'], cv_option)
 	if param['alg'] == 'EDBP' or param['alg'] == 'EDCS':
 	    cmd += ' -C 2 -W {0}.train.cost'.format(param['name'])
 	if param['alg'] == 'CS':
@@ -409,14 +412,17 @@ def get_deci_cmdline(param):
 	cmd += ' -w1 {0} -w-1 {1}  {2} {3} '.format(param['Cp'], param['Cn'], param['dataset'], model_file)
 	p = Popen(cmd, shell=True, stdout=PIPE)
 	p.wait()
-	cmd = '{0} {1} {2} {3} '.format(cssvm_classify,test_file, model_file, pred_file)
-	p = Popen(cmd, shell=True, stdout=PIPE)
-	p.wait()
-	deci=read_deci(pred_file)
-	model = svm_load_model(model_file)
-	labels = model.get_labels()
-	deci = [labels[0]*val[0] for val in deci]
-	test_y=read_labels(test_file)
+	if cv_option == "":
+		cmd = '{0} {1} {2} {3} '.format(cssvm_classify,test_file, model_file, pred_file)
+		p = Popen(cmd, shell=True, stdout=PIPE)
+		p.wait()
+		deci=read_deci(pred_file)
+		model = svm_load_model(model_file)
+		labels = model.get_labels()
+		deci = [labels[0]*val[0] for val in deci]
+		test_y=read_labels(test_file)
+	else:
+		est_y, deci=read_cv_file(model_file+".cv")
 	return test_y, deci
 
 def  get_cv_deci(param):

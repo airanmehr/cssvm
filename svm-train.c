@@ -166,7 +166,6 @@ void do_cross_validation(const char* cv_file_name)
 				printf("Error CVout file!\n");
 				exit(1);
 			}
-			fprintf(f, "Label\tPrediction\n");
 			for(i=0;i<prob.l;i++){
 				if(target[i] * prob.y[i] >0)
 					++total_correct;
