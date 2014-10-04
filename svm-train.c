@@ -169,7 +169,7 @@ void do_cross_validation(const char* cv_file_name)
 			for(i=0;i<prob.l;i++){
 				if(target[i] * prob.y[i] >0)
 					++total_correct;
-				fprintf(f, "%.0f\t%f\n", prob.y[i], target[i]);
+				fprintf(f, "%f\n", target[i]);
 			}
 			fclose(f);
 		}else{

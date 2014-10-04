@@ -324,8 +324,16 @@ def set_default_params(param):
 		param['cmdline']  = False
 	return param
 
+def performance_is_better(param, performance, best, best_Cp, best_Cn): #sometimes we want to minimize and sometimes maximize
+	if param['measure'] == 'Risk' or param['measure'] == 'Error' or param['measure'] == 'PError':
+		if (performance < best) or (performance == best and  param['Cp'] < best_Cp) or (performance == best and  param['Cn'] < best_Cn):
+			return True
+	if param['measure'] == 'AUC' or param['measure'] == 'Income' or param['measure'] == 'Accuracy':
+		if (performance > best) or (performance == best and  param['Cp'] < best_Cp) or (performance == best and  param['Cn'] < best_Cn):
+			return True
+	
 def grid_search(param):
-	best_performance, best_Cp, best_Cn, best_C, best_G = 1, 1, 1, 1, 1
+	best_performance, best_Cp, best_Cn, best_c, best_g = 1, 1, 1, 1, 1
 	RangeC, RangeG, RangeCp, RangeK= get_range_for_algorithm(param)
 	if param['verb']>0:
 		print 'RangeC =', RangeC, 'RangeG =', RangeG, 'RangeCp =', RangeCp, 'RangeK =', RangeK
@@ -339,13 +347,13 @@ def grid_search(param):
 	                        continue
 	                    param['Cn'], param['Cp'], param['C'], param['gamma'] = 1 / i, j, k, l  #**************  C_n = 1/Kappa
 	                    performance = train(param.copy())
-	                    if (performance < best_performance) or (performance == best_performance and  param['Cp'] < best_Cp) or (performance == best_performance and  param['Cn'] < best_Cn):
-	                        best_performance,best_Cp, best_Cn, best_c, best_g = performance, param['Cp'], param['Cn'], param['C'], param['gamma']
+	                    if performance_is_better(param, performance, best_performance, best_Cp, best_Cn):
+	                    	best_performance,best_Cp, best_Cn, best_c, best_g = performance, param['Cp'], param['Cn'], param['C'], param['gamma']
 	                    print >> out_file, '{0}\t{1}\t{2}\t{3}\t{4}'.format( param['C'], param['gamma'],param['Cp'], param['Cn'], performance)
 	    print >> out_file, 'Bests:\t{0}\t{1}\t{2}\t{3}\t{4}'.format(best_c, best_g, best_Cp, best_Cn, best_performance)
 	    if param['verb']>0:
 	        print"{0} Grid on {1} Finished in {2} Iterations. C={3} Gamma={4} Cp={5} Kappa={6} \t {7}={8}  ".format(param['alg'], param['dataset_name'],len(RangeG)*len(RangeC)*len(RangeCp)*len(RangeK), best_c, best_g, best_Cp, 1./best_Cn, param['measure'], best_performance)
-	return best_performance, best_C, best_G, best_Cp, best_Cn  
+	return best_performance, best_c, best_g, best_Cp, best_Cn  
 
 def train(param, test=False):
 	"""
@@ -367,6 +375,12 @@ def train(param, test=False):
 	    performance = get_auc(deci, label, param)
 	elif param['measure']=='Risk':
 	    performance = get_risk(deci, label, param)
+	elif param['measure']=='Accuracy':
+	    performance = get_acc(deci, label)
+	elif param['measure']=='Error':
+	    performance = get_acc(deci, label)
+	elif param['measure']=='PError':
+	    performance = get_acc(deci, label, param['Pn'], param['Pp'])
 	if param['verb']>1:
 		print"{0} Train on {1}  with C={2} Gamma={3} Cp={4} Kappa={5} \t {6}={7}  ".format(param['alg'], param['dataset_name'], param['C'], param['gamma'], param['Cp'], 1./param['Cn'], param['measure'], performance)
 	return performance
@@ -394,22 +408,22 @@ def get_deci_cmdline(param):
 	cv_option=""
 	model_file= '{0}.{1}.model'.format(param['dataset'], param['alg'])
 	pred_file= '{0}.{1}.pred'.format(param['dataset'], param['alg'])
+	train_file= param['dataset']+'.train'
 	if param['fold'] == -1:
-		test_file= param['dataset'].replace('train','test')
-	if param['fold'] == 0 :
-		test_file= param['dataset'].replace('train','val')
-	if param['fold'] == 1 :
-		test_file= param['dataset'] 
+		test_file= param['dataset']+'.test'
+	elif param['fold'] == 0 :
+		test_file= param['dataset']+'.val'
+	elif param['fold'] == 1 :
+		test_file= train_file 
 	else:
 		test_file= ""
 		cv_option = "-v {0}".format(param['fold'])
-		
 	cmd = '{0} -h 0 {1} -m 2000 -c {2} -g {3} {4}'.format(cssvm_train,('','q')[param['verb']>4], param['C'], param['gamma'], cv_option)
 	if param['alg'] == 'EDBP' or param['alg'] == 'EDCS':
 	    cmd += ' -C 2 -W {0}.train.cost'.format(param['name'])
 	if param['alg'] == 'CS':
 	    cmd += ' -C 1 '
-	cmd += ' -w1 {0} -w-1 {1}  {2} {3} '.format(param['Cp'], param['Cn'], param['dataset'], model_file)
+	cmd += ' -w1 {0} -w-1 {1}  {2} {3} '.format(param['Cp'], param['Cn'], train_file, model_file)
 	p = Popen(cmd, shell=True, stdout=PIPE)
 	p.wait()
 	if cv_option == "":
@@ -419,11 +433,12 @@ def get_deci_cmdline(param):
 		deci=read_deci(pred_file)
 		model = svm_load_model(model_file)
 		labels = model.get_labels()
-		deci = [labels[0]*val[0] for val in deci]
-		test_y=read_labels(test_file)
+		deci = [labels[0]*val for val in deci]
+		label=read_labels(test_file)
 	else:
-		est_y, deci=read_cv_file(model_file+".cv")
-	return test_y, deci
+		deci=read_deci(model_file+".cv")
+		label=read_labels(train_file)
+	return deci, label
 
 def  get_cv_deci(param):
 	seed(0)
