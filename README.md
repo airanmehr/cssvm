@@ -52,7 +52,18 @@ options:
 
 3.   CSSVM Tools
 -
+Several utiliy functions for training, grid search, and computind different performance measures is provided in `cssvm_tools.py`.
+
+`cssvmutil.py` and `cssvm.py` containt python interface functions for CSSVM.
 
 4.   Examples
 -
+Example scripts involving grid search, cross-validation, train and testing CSSVM is provided for each algorithm:
+
+**Cost-Sensitive Learning with Available Class-Dependent Costs (CSA):** For the `german` dataset which its costs are known, `run_german` perfoms grid search, minimizing the (cost-sensitive) Risk to find the best hyperparameters and threshold for SVM, Biased-Penalty SVM, and CSSVM. The output of the can be found in the  [run_german.html](./python/run_german.html)
+
+**Cost-Sensitive Learning with Unavailable Class-Dependent Costs (CSU):** (to be added)
+
+**Cost-Sensitive Learning with Example-Dependent Costs (CSE):** (to be added)
+
 
