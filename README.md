@@ -66,4 +66,12 @@ Example scripts involving grid search, cross-validation, train and testing CSSVM
 
 **Cost-Sensitive Learning with Example-Dependent Costs (CSE):** (to be added)
 
-
+5. Cite
+-
+`
+@article{masnadi2012cost,
+  title={Cost-Sensitive Support Vector Machines},
+  author={Masnadi-Shirazi, Hamed and Vasconcelos, Nuno and Iranmehr, Arya},
+  journal={arXiv preprint arXiv:1212.0975},
+  year={2012}
+}`
